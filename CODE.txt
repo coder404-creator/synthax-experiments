@@ -1,0 +1,67 @@
+
+#define BLYNK_TEMPLATE_ID "TMPL3PLrWLz59"
+#define BLYNK_TEMPLATE_NAME "Gas Leakage Notification"
+#define BLYNK_AUTH_TOKEN "mNg0lL9d45UCeakAWl4uCCU_Bcb3n1g7"
+
+#include <WiFi.h>
+#include <BlynkSimpleEsp32.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+char auth[] = BLYNK_AUTH_TOKEN;
+char ssid[] = "WIFI NAME";
+char pass[] = "WIFI PASSWORD";
+
+#define MQ2_PIN 34         // MQ2 analog pin connected to GPIO34
+#define BUZZER_PIN 26      // Buzzer connected to GPIO26
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+bool alertSent = false;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(MQ2_PIN, INPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
+
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("WELCOME");
+  delay(3000);  // Show welcome message for 3 sec
+
+  lcd.clear();
+
+  Blynk.begin(auth, ssid, pass);
+}
+
+void loop() {
+  Blynk.run();
+
+  int gasValue = analogRead(MQ2_PIN);           // 0 to 4095
+  int scaledGas = map(gasValue, 0, 4095, 0, 1000); // Scale to 0–1000
+
+  lcd.setCursor(0, 0);
+  lcd.print("Gas Level:     ");     // Clear leftover chars
+  lcd.setCursor(0, 1);
+  lcd.print("Value: ");
+  lcd.print(scaledGas);
+  lcd.print("     ");               // Pad to clear old digits
+
+  Blynk.virtualWrite(V0, scaledGas);  // Send to Blynk gauge
+
+  if (scaledGas >400) {
+    digitalWrite(BUZZER_PIN, HIGH);
+
+    if (!alertSent) {
+      Blynk.logEvent("gas_alert", "High Gas Level Detected!");
+      alertSent = true;
+    }
+
+  } else {
+    digitalWrite(BUZZER_PIN, LOW);
+    alertSent = false;
+  }
+
+  delay(1000);
+}
